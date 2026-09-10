@@ -13,7 +13,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
-
     Route::post('/logout', [AuthController::class, 'logout']);
+    
     Route::post('/reimbursements/analyze', [ReimbursementController::class, 'store']);
+    Route::get('/reimbursements', [ReimbursementController::class, 'index']);
+    Route::post('/reimbursements/analyze', [ReimbursementController::class, 'store']);
+    Route::patch('/reimbursements/{id}/status', [ReimbursementController::class, 'updateStatus']);
 });

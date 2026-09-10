@@ -4,17 +4,18 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Reimbursement;
-use App\Http\Services\ReimbursementAiService;
+use App\Http\Services\ReimbursementService;
+use Exception;
 
 class ReimbursementController extends Controller
 {
     //
 
-    protected $aiService;
+    protected $reimbursementService;
 
-    public function __construct(ReimbursementAiService $aiService)
+    public function __construct(ReimbursementService $reimbursementService)
     {
-        $this->aiService = $aiService;
+        $this->reimbursementService = $reimbursementService;
     }
 
     public function store(Request $request)
@@ -28,7 +29,7 @@ class ReimbursementController extends Controller
         
         $absolutePath = storage_path('app/public/' . $savedPath);
 
-        $extractedData = $this->aiService->analyzeReceipt($absolutePath, $file->getClientMimeType());
+        $extractedData = $this->reimbursementService->analyzeReceipt($absolutePath, $file->getClientMimeType());
 
         if (!$extractedData) {
             return response()->json([
@@ -50,5 +51,30 @@ class ReimbursementController extends Controller
             'data' => $reimbursement,
             'ai_raw_data' => $extractedData 
         ], 201);
+    }
+
+    public function index(Request $request)
+    {
+        $data = $this->reimbursementService->getReimbursements($request->user());
+        return response()->json(['data' => $data]);
+    }
+
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:approved,rejected'
+        ]);
+
+        try {
+            $result = $this->reimbursementService->updateStatus($id, $request->status, $request->user());
+            
+            return response()->json([
+                'message' => 'Status berhasil diperbarui',
+                'data' => $result
+            ]);
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 ? $e->getCode() : 500;
+            return response()->json(['message' => $e->getMessage()], $code);
+        }
     }
 }

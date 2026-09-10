@@ -2,11 +2,13 @@
 
 namespace App\Http\Services;
 
+use App\Models\Reimbursement;
+use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
-class ReimbursementAiService
+class ReimbursementService
 {
     protected $apiKey;
     protected $apiUrl;
@@ -60,5 +62,32 @@ class ReimbursementAiService
             Log::error('Gemini Exception: ' . $e->getMessage());
             return null;
         }
+    }
+
+    public function getReimbursements(User $user)
+    {
+        if (in_array($user->role, ['admin_finance', 'admin_hr'])) {
+            return Reimbursement::with('user:id,name,email')->orderBy('created_at', 'desc')->get();
+        }
+
+        return Reimbursement::where('user_id', $user->id)->orderBy('created_at', 'desc')->get();
+    }
+
+    public function updateStatus(int $id, string $status, User $admin)
+    {
+        if (!in_array($admin->role, ['admin_finance', 'admin_hr'])) {
+            throw new Exception('Akses ditolak. Hanya Admin yang dapat mengubah status.', 403);
+        }
+
+        $reimbursement = Reimbursement::find($id);
+
+        if (!$reimbursement) {
+            throw new Exception('Data reimbursement tidak ditemukan.', 404);
+        }
+
+        $reimbursement->status = $status;
+        $reimbursement->save();
+
+        return $reimbursement;
     }
 }
