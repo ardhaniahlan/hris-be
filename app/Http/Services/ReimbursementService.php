@@ -16,7 +16,7 @@ class ReimbursementService
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key');
-        $this->apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+        $this->apiUrl = config('services.gemini.api_url');
     }
 
     public function analyzeReceipt(string $imagePath, string $mimeType): ?array
