@@ -2,6 +2,7 @@
 
 namespace App\Http\Services;
 
+use App\Http\Services\Concerns\AnalyzesWithGemini;
 use App\Models\Leave;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,8 @@ use Exception;
 
 class LeaveService
 {
+    use AnalyzesWithGemini;
+
     protected $apiKey;
     protected $apiUrl;
 
@@ -21,57 +24,20 @@ class LeaveService
 
     public function analyzeMedicalCertificate(string $imagePath, string $mimeType): ?array
     {
-        $base64Image = base64_encode(file_get_contents($imagePath));
-
-        $prompt = 'Anda adalah sistem verifikasi HRD profesional. Analisis gambar Surat Keterangan Sakit / Medical Certificate ini. 
-        Temukan nama instansi kesehatannya dan kembalikan HANYA dalam format objek JSON valid tanpa markdown tambahan.
+        $prompt = 'Anda adalah sistem verifikasi HRD profesional. Analisis gambar Surat Keterangan Sakit / Medical Certificate ini.
+        Kembalikan HANYA dalam format objek JSON valid tanpa markdown tambahan.
         Struktur JSON yang diminta:
         {
-            "hospital_name": "Nama rumah sakit, klinik, puskesmas, atau praktik dokter yang menerbitkan surat ini. Jika gambar bukan surat sakit atau nama tidak terbaca, isi dengan null."
-        }';
-
-        try {
-            $response = Http::withoutVerifying()
-                ->timeout(30)
-                ->post($this->apiUrl . '?key=' . $this->apiKey, [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $prompt],
-                            [
-                                'inline_data' => [
-                                    'mime_type' => $mimeType,
-                                    'data' => $base64Image
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]);
-
-            if ($response->successful()) {
-                $result = $response->json();
-                $textResponse = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-                $textResponse = str_replace(['```json', '```'], '', $textResponse);
-                
-                $decoded = json_decode(trim($textResponse), true);
-                
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    Log::error('Gemini JSON Parse Error (Leave): ' . $textResponse);
-                    return null;
-                }
-                
-                return $decoded;
-            }
-
-            Log::error('Gemini API Error (Leave): ' . $response->body());
-            return null;
-
-        } catch (Exception $e) {
-            Log::error('Gemini Exception (Leave): ' . $e->getMessage());
-            return null;
+            "hospital_name": "Nama rumah sakit, klinik, puskesmas, atau praktik dokter yang menerbitkan surat ini. Jika tidak terbaca, isi null.",
+            "certificate_date": "Tanggal surat ini DITERBITKAN/DIBUAT oleh dokter, dalam format YYYY-MM-DD. Jika tidak terbaca, isi null.",
+            "patient_name": "Nama pasien/karyawan yang tertulis di surat ini. Jika tidak terbaca, isi null.",
+            "rest_duration_days": "Jumlah hari istirahat yang direkomendasikan dokter, HANYA angka (contoh: 3). Jika tidak disebutkan angka pasti, isi null."
         }
+        Jika gambar bukan surat keterangan sakit sama sekali, isi semua field dengan null.';
+
+        return $this->callGeminiVision($imagePath, $mimeType, $prompt, 'Leave');
     }
+
 
     public function getLeaves(User $user)
     {

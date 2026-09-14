@@ -2,6 +2,7 @@
 
 namespace App\Http\Services;
 
+use App\Http\Services\Concerns\AnalyzesWithGemini;
 use App\Models\Reimbursement;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,8 @@ use Exception;
 
 class ReimbursementService
 {
+    use AnalyzesWithGemini;
+
     protected $apiKey;
     protected $apiUrl;
 
@@ -21,47 +24,15 @@ class ReimbursementService
 
     public function analyzeReceipt(string $imagePath, string $mimeType): ?array
     {
-        $base64Image = base64_encode(file_get_contents($imagePath));
-
         $prompt = 'Anda adalah asisten akuntansi profesional. Analisis gambar struk ini. Ekstrak informasi berikut dan kembalikan HANYA dalam format objek JSON valid tanpa markdown tambahan:
-        1. "amount": Total nilai transaksi (hanya angka, tanpa simbol mata uang atau titik/koma ribuan).
-        2. "transaction_date": Tanggal transaksi dalam format YYYY-MM-DD. Jika tidak ada, isi null.
-        3. "merchant_name": Nama toko atau merchant tempat transaksi terjadi.';
+        {
+            "amount": "Total nilai transaksi, HANYA angka tanpa simbol mata uang atau titik/koma ribuan.",
+            "transaction_date": "Tanggal transaksi dalam format YYYY-MM-DD. Jika tidak ada, isi null.",
+            "merchant_name": "Nama toko atau merchant tempat transaksi terjadi.",
+            "receipt_number": "Nomor struk atau nomor invoice/referensi transaksi, jika tercetak di struk. Jika tidak ada, isi null."
+        }';
 
-        try {
-            $response = Http::post($this->apiUrl . '?key=' . $this->apiKey, [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $prompt],
-                            [
-                                'inline_data' => [
-                                    'mime_type' => $mimeType,
-                                    'data' => $base64Image
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]);
-
-            if ($response->successful()) {
-                $result = $response->json();
-                
-                $textResponse = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-                
-                $textResponse = str_replace(['```json', '```'], '', $textResponse);
-                
-                return json_decode(trim($textResponse), true);
-            }
-
-            Log::error('Gemini API Error: ' . $response->body());
-            return null;
-
-        } catch (Exception $e) {
-            Log::error('Gemini Exception: ' . $e->getMessage());
-            return null;
-        }
+        return $this->callGeminiVision($imagePath, $mimeType, $prompt, 'Reimbursement');
     }
 
     public function getReimbursements(User $user)

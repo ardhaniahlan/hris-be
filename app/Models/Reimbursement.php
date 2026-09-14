@@ -11,12 +11,8 @@ class Reimbursement extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
-        'amount',
-        'transaction_date',
-        'merchant_name',
-        'receipt_image_url',
-        'status',
+        'user_id', 'amount', 'transaction_date', 'merchant_name', 'description',
+        'receipt_image_url', 'receipt_number', 'verification_notes', 'status',
     ];
 
     public function user(): BelongsTo {
